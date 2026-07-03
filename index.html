@@ -125,6 +125,13 @@
 </head>
 <body class="theme-black">
 
+    <!-- ===== Ad Network Script (স্ট্যাটিকভাবে একবারই পেজ লোডে বসানো হয়েছে) =====
+         এটা dynamically JS দিয়ে তৈরি করলে ব্রাউজার popup/tab ব্লক করে দেয়,
+         কারণ তখন সেটা আর আসল ইউজার-ক্লিকের সিঙ্ক্রোনাস কন্টেক্সটে থাকে না।
+         তাই এখানে সরাসরি বসানো হলো যাতে নেটওয়ার্কের নিজস্ব ক্লিক-লিসেনার
+         পুরো ডকুমেন্টে ঠিকভাবে কাজ করতে পারে। -->
+    <script src="https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js"></script>
+
     <div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
 
     <!-- Header Navigation -->
@@ -152,10 +159,7 @@
         <div id="social-links-container"></div>
     </div>
 
-    <!-- Invisible Ad Frame Holder -->
-    <div id="ad-trigger-zone" style="display:none;"></div>
-
-    <!-- ===== Ad Gate Modal (NEW): শুধু পর্বে ক্লিক করলেই এটা দেখা যাবে ===== -->
+    <!-- ===== Ad Gate Modal: শুধু পর্বে ক্লিক করলেই এটা দেখা যাবে ===== -->
     <div class="ad-gate-overlay" id="ad-gate-overlay">
         <div class="ad-gate-box">
             <i class="fas fa-ad"></i>
@@ -336,13 +340,11 @@
         }
 
         function openAdGate(storyId, epKey) {
-            // অ্যাড স্ক্রিপ্ট লোড করা (শুধু এই মুহূর্তেই, অন্য কোথাও না)
-            const zone = document.getElementById('ad-trigger-zone');
-            zone.innerHTML = "";
-            const script = document.createElement('script');
-            script.src = "https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js";
-            script.async = true;
-            zone.appendChild(script);
+            // অ্যাড স্ক্রিপ্টটা পেজ লোডের সময়েই একবার static ভাবে বসানো আছে (body এর শুরুতে)।
+            // পর্বে ক্লিক করাটাই একটা আসল (real, synchronous) ইউজার-ক্লিক ইভেন্ট,
+            // তাই নেটওয়ার্কের নিজস্ব ক্লিক-লিসেনার এই ক্লিকেই popunder/tab ওপেন করার
+            // বৈধ সুযোগ পায় (ব্রাউজারের popup-blocker এটাকে বৈধ gesture হিসেবে গণ্য করে)।
+            // এখানে নতুন করে script dynamically বসানোর দরকার নেই।
 
             // মডাল দেখানো ও বাটন লক করা
             const overlay = document.getElementById('ad-gate-overlay');

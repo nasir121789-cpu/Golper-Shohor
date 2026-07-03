@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>গল্পের শহর - Story Reading App</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* CSS Variables for Theme Changing */
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #ff4757;
+            --primary-font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Themes */
+        .theme-black { --bg-color: #121212; --surface-color: #1e1e1e; --text-color: #e0e0e0; --accent-color: #ff4757; }
+        .theme-white { --bg-color: #f5f6fa; --surface-color: #ffffff; --text-color: #2f3640; --accent-color: #2f3542; }
+        .theme-pink { --bg-color: #fff0f5; --surface-color: #ffdee9; --text-color: #4a148c; --accent-color: #ff6b81; }
+        .theme-dark { --bg-color: #050505; --surface-color: #0d0d0d; --text-color: #b3b3b3; --accent-color: #1e90ff; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--primary-font);
+            transition: all 0.3s ease;
+            overflow-x: hidden;
+        }
+
+        /* Header Style */
+        header {
+            background-color: var(--surface-color);
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .header-title { font-size: 20px; font-weight: bold; color: var(--accent-color); cursor: pointer; }
+        .icon-btn { background: none; border: none; color: var(--text-color); font-size: 22px; cursor: pointer; }
+
+        /* Search Bar */
+        .search-container { padding: 15px; display: flex; gap: 10px; }
+        .search-box {
+            flex: 1; padding: 12px; border-radius: 8px; border: none;
+            background-color: var(--surface-color); color: var(--text-color); outline: none;
+        }
+
+        /* Left Menu Drawer */
+        .drawer {
+            position: fixed; top: 0; left: 0; width: 280px; height: 100%; 
+            background-color: var(--surface-color); z-index: 200;
+            transition: transform 0.3s ease; padding: 20px; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            transform: translateX(-100%); overflow-y: auto;
+        }
+        .drawer.active { transform: translateX(0); }
+        .drawer-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 150; display: none;
+        }
+        .drawer h3 { margin-top: 15px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; font-size: 16px; }
+        .drawer-item { display: flex; align-items: center; gap: 15px; padding: 12px 0; cursor: pointer; color: var(--text-color); text-decoration: none; font-size: 15px; }
+
+        /* Theme Picker inside drawer */
+        .theme-selector { display: flex; gap: 10px; margin-top: 10px; margin-bottom: 20px;}
+        .theme-dot { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; }
+
+        /* Story Grid Layout */
+        .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; padding: 15px; }
+        .story-card { background: var(--surface-color); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: 0.3s; cursor: pointer;}
+        .story-card img { width: 100%; height: 200px; object-fit: cover; }
+        .story-details { padding: 10px; }
+        .story-name { font-size: 15px; font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .story-meta { display: flex; justify-content: space-between; font-size: 12px; margin-top: 8px; opacity: 0.7;}
+
+        /* Page Management Layouts */
+        .page { display: none; padding: 15px; animation: fadeIn 0.3s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Episode List Styles */
+        .ep-list-item { background: var(--surface-color); padding: 16px 20px; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid rgba(255,255,255,0.02); }
+        .ep-list-item:hover { background: rgba(255,255,255,0.03); }
+        
+        /* Reading Board Page */
+        .reading-content { 
+            line-height: 1.8; font-size: 18px; text-align: justify; 
+            white-space: pre-wrap; word-wrap: break-word;
+        }
+        .font-controls { display: flex; gap: 15px; margin-bottom: 20px; background: var(--surface-color); padding: 10px; border-radius: 8px;}
+    </style>
+</head>
+<body class="theme-black">
+
+    <div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+
+    <header>
+        <button class="icon-btn" onclick="openDrawer()"><i class="fas fa-bars"></i></button>
+        <div class="header-title" onclick="showPage('home-page')">গল্পের শহর</div>
+    </header>
+
+    <div class="drawer" id="left-drawer">
+        <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 15px;">গল্পের শহর</h2>
+        
+        <div class="drawer-item" onclick="showPage('home-page')"><i class="fas fa-home"></i> হোম ড্যাশবোর্ড</div>
+        <div class="drawer-item" onclick="showPage('fav-page')"><i class="fas fa-heart"></i> আমার প্রিয় তালিকা</div>
+        
+        <h3>অ্যাপ থিম পরিবর্তন</h3>
+        <div class="theme-selector">
+            <div class="theme-dot" style="background: #121212;" onclick="setTheme('theme-black')"></div>
+            <div class="theme-dot" style="background: #ffffff;" onclick="setTheme('theme-white')"></div>
+            <div class="theme-dot" style="background: #ffdee9;" onclick="setTheme('theme-pink')"></div>
+            <div class="theme-dot" style="background: #050505;" onclick="setTheme('theme-dark')"></div>
+        </div>
+
+        <h3>আমাদের সোশ্যাল মিডিয়া</h3>
+        <div id="social-links-container"></div>
+    </div>
+
+    <main>
+        <div id="home-page" class="page active">
+            <div class="search-container">
+                <input type="text" class="search-box" id="search-input" placeholder="গল্পের নাম দিয়ে খুঁজুন..." oninput="searchStories()">
+            </div>
+            <div class="story-grid" id="story-display"></div>
+        </div>
+
+        <div id="episodes-page" class="page">
+            <button class="icon-btn" onclick="showPage('home-page')" style="margin-bottom: 15px;"><i class="fas fa-arrow-left"></i> ফিরে যান</button>
+            <h2 id="current-story-title" style="margin-bottom: 15px;">গল্পের নাম</h2>
+            <div id="episodes-display"></div>
+        </div>
+
+        <div id="reading-page" class="page">
+            <button class="icon-btn" onclick="goBackToEpisodes()" style="margin-bottom: 15px;"><i class="fas fa-arrow-left"></i> পর্ব তালিকা</button>
+            <div class="font-controls" id="non-ad-zone">
+                <button class="icon-btn" onclick="changeFontSize(1)"><i class="fas fa-plus"></i> বড় হরফ</button>
+                <button class="icon-btn" onclick="changeFontSize(-1)"><i class="fas fa-minus"></i> ছোট হরফ</button>
+            </div>
+            <h2 id="current-episode-title" style="margin-bottom: 20px; color: var(--accent-color);"></h2>
+            <div class="reading-content" id="reading-text-content"></div>
+        </div>
+
+        <div id="fav-page" class="page">
+            <h2 style="margin-bottom: 15px;">আপনার প্রিয় গল্পসমূহ</h2>
+            <div class="story-grid" id="fav-story-display"></div>
+        </div>
+    </main>
+
+    <script>
+        // Real-time Firebase Link Infrastructure 
+        const firebaseConfig = {
+            apiKey: "AIzaSyCiQW344n868ghtWJJycb222GU_1bB9DMo",
+            authDomain: "golper-1b3b1.firebaseapp.com",
+            databaseURL: "https://golper-1b3b1-default-rtdb.firebaseio.com",
+            projectId: "golper-1b3b1",
+            storageBucket: "golper-1b3b1.firebasestorage.app",
+            messagingSenderId: "739970536355",
+            appId: "1:739970536355:web:5e68f867b05a9091a98016"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let allStories = {};
+        let selectedStoryId = "";
+        let currentFontSize = 18;
+
+        // Save State into Memory
+        window.addEventListener('load', () => {
+            const savedTheme = localStorage.getItem('app_theme') || 'theme-black';
+            document.body.className = savedTheme;
+            
+            const lastPage = localStorage.getItem('last_page') || 'home-page';
+            const lastStory = localStorage.getItem('last_story_id');
+            
+            db.ref('stories').on('value', snapshot => {
+                allStories = snapshot.val() || {};
+                renderStories(allStories);
+                renderFavStories();
+                
+                if (lastPage === 'episodes-page' && lastStory && allStories[lastStory]) {
+                    openStory(lastStory);
+                } else if(lastPage === 'reading-page' && lastStory && allStories[lastStory]) {
+                    openStory(lastStory);
+                    const lastEp = localStorage.getItem('last_ep_key');
+                    if(lastEp) loadEpisodeContent(lastStory, lastEp);
+                }
+            });
+        });
+
+        db.ref('social_media').on('value', snapshot => {
+            const media = snapshot.val() || {};
+            let html = '';
+            for(let key in media){
+                html += `<a href="${media[key].link}" target="_blank" class="drawer-item">
+                    <img src="${media[key].icon}" width="22" height="22" style="border-radius:4px;"> ${media[key].name}
+                </a>`;
+            }
+            document.getElementById('social-links-container').innerHTML = html;
+        });
+
+        // Content Security Engine
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        function renderStories(stories) {
+            const container = document.getElementById('story-display');
+            container.innerHTML = '';
+            for (let id in stories) {
+                const story = stories[id];
+                const isFav = localStorage.getItem('fav_' + id) ? 'fa-heart' : 'fa-bookmark';
+                container.innerHTML += `
+                    <div class="story-card" onclick="openStory('${id}')">
+                        <img src="${story.coverImage || 'https://via.placeholder.com/150'}" alt="">
+                        <div class="story-details">
+                            <div class="story-name">${story.name}</div>
+                            <div class="story-meta">
+                                <span>👁️ ${story.views || 0}</span>
+                                <span onclick="toggleFav(event, '${id}')"><i class="fas ${isFav}"></i></span>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        function openStory(id) {
+            selectedStoryId = id;
+            localStorage.setItem('last_story_id', id);
+            
+            if(localStorage.getItem('viewed_' + id) !== 'true') {
+                db.ref(`stories/${id}/views`).transaction(views => (views || 0) + 1);
+                localStorage.setItem('viewed_' + id, 'true');
+            }
+            
+            document.getElementById('current-story-title').innerText = allStories[id].name;
+            const epDisplay = document.getElementById('episodes-display');
+            epDisplay.innerHTML = '';
+
+            const episodes = allStories[id].episodes;
+            if (episodes) {
+                for (let epKey in episodes) {
+                    epDisplay.innerHTML += `
+                        <div class="ep-list-item" onclick="forceTriggerAdThenOpen('${id}', '${epKey}')">
+                            <span><i class="fas fa-book-open" style="opacity:0.6; margin-right:8px;"></i> ${episodes[epKey].number}</span>
+                            <i class="fas fa-chevron-right" style="font-size:12px; opacity:0.5;"></i>
+                        </div>`;
+                }
+            } else {
+                epDisplay.innerHTML = '<p style="padding:15px; opacity:0.6;">কোনো পর্ব পাওয়া যায়নি।</p>';
+            }
+            showPage('episodes-page');
+        }
+
+        // FORCE TARGET CLICK AD LINK REDIRECT ROUTER
+        function forceTriggerAdThenOpen(storyId, epKey) {
+            localStorage.setItem('last_ep_key', epKey);
+            
+            // Your exact direct CPM network script/link redirect implementation
+            const adUrl = "https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js";
+            
+            try {
+                // Instantly force open the ad network inside another system tab/window safely
+                window.open(adUrl, '_blank');
+            } catch(e) {
+                // Fail-safe fall back link handling
+                console.log("Popunder blocked, using standard router.");
+            }
+
+            // Immediately switch the application screen layout to show reading data
+            loadEpisodeContent(storyId, epKey);
+        }
+
+        function loadEpisodeContent(storyId, epKey) {
+            const ep = allStories[storyId].episodes[epKey];
+            document.getElementById('current-episode-title').innerText = ep.number;
+            
+            const readingContainer = document.getElementById('reading-text-content');
+            readingContainer.innerText = ep.text || "কোনো কন্টেন্ট নেই।";
+            readingContainer.style.fontSize = currentFontSize + 'px';
+            
+            showPage('reading-page');
+        }
+
+        // State Machine Page Control Nodes
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            localStorage.setItem('last_page', pageId);
+            closeDrawer();
+        }
+
+        function goBackToEpisodes() { showPage('episodes-page'); }
+
+        function setTheme(themeName) {
+            document.body.className = themeName;
+            localStorage.setItem('app_theme', themeName);
+            closeDrawer();
+        }
+
+        function openDrawer() {
+            document.getElementById('left-drawer').classList.add('active');
+            document.getElementById('overlay').style.display = 'block';
+        }
+        function closeDrawer() {
+            document.getElementById('left-drawer').classList.remove('active');
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function changeFontSize(val) {
+            currentFontSize += val;
+            if(currentFontSize < 14) currentFontSize = 14;
+            if(currentFontSize > 30) currentFontSize = 30;
+            document.getElementById('reading-text-content').style.fontSize = currentFontSize + 'px';
+        }
+
+        // Stop propagation of events at font adjusters to prevent ghost ad ticks
+        document.getElementById('non-ad-zone').addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        function searchStories() {
+            const q = document.getElementById('search-input').value.toLowerCase();
+            const filtered = {};
+            for(let id in allStories){
+                if(allStories[id].name.toLowerCase().includes(q)){
+                    filtered[id] = allStories[id];
+                }
+            }
+            renderStories(filtered);
+        }
+
+        function toggleFav(e, id) {
+            e.stopPropagation();
+            if(localStorage.getItem('fav_' + id)) {
+                localStorage.removeItem('fav_' + id);
+            } else {
+                localStorage.setItem('fav_' + id, true);
+            }
+            renderStories(allStories);
+            renderFavStories();
+        }
+
+        function renderFavStories() {
+            const container = document.getElementById('fav-story-display');
+            container.innerHTML = '';
+            let hasFav = false;
+            for(let id in allStories) {
+                if(localStorage.getItem('fav_' + id)) {
+                    hasFav = true;
+                    container.innerHTML += `
+                        <div class="story-card" onclick="openStory('${id}')">
+                            <img src="${allStories[id].coverImage || 'https://via.placeholder.com/150'}" alt="">
+                            <div class="story-details">
+                                <div class="story-name">${allStories[id].name}</div>
+                            </div>
+                        </div>`;
+                }
+            }
+            if(!hasFav) container.innerHTML = '<p style="padding:15px; opacity:0.5;">প্রিয় তালিকায় কোনো গল্প নেই।</p>';
+        }
+    </script>
+</body>
+  </html>

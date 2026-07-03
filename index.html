@@ -87,8 +87,13 @@
         .page.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Episode List Styles */
-        .ep-list-item { background: var(--surface-color); padding: 16px 20px; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 1px solid rgba(255,255,255,0.02); }
+        /* Episode List Styles (No JS Ads injected here, purely HTML redirect) */
+        .ep-list-item { 
+            background: var(--surface-color); padding: 16px 20px; margin-bottom: 10px; 
+            border-radius: 10px; display: flex; justify-content: space-between; 
+            align-items: center; cursor: pointer; border: 1px solid rgba(255,255,255,0.02);
+            color: var(--text-color); text-decoration: none;
+        }
         .ep-list-item:hover { background: rgba(255,255,255,0.03); }
         
         /* Reading Board Page */
@@ -126,8 +131,6 @@
         <div id="social-links-container"></div>
     </div>
 
-    <div id="ad-trigger-zone" style="display:none;"></div>
-
     <main>
         <div id="home-page" class="page active">
             <div class="search-container">
@@ -144,10 +147,12 @@
 
         <div id="reading-page" class="page">
             <button class="icon-btn" onclick="goBackToEpisodes()" style="margin-bottom: 15px;"><i class="fas fa-arrow-left"></i> পর্ব তালিকা</button>
-            <div class="font-controls" id="non-ad-zone">
+            
+            <div class="font-controls">
                 <button class="icon-btn" onclick="changeFontSize(1)"><i class="fas fa-plus"></i> বড় হরফ</button>
                 <button class="icon-btn" onclick="changeFontSize(-1)"><i class="fas fa-minus"></i> ছোট হরফ</button>
             </div>
+
             <h2 id="current-episode-title" style="margin-bottom: 20px; color: var(--accent-color);"></h2>
             <div class="reading-content" id="reading-text-content"></div>
         </div>
@@ -242,16 +247,6 @@
                 db.ref(`stories/${id}/views`).transaction(views => (views || 0) + 1);
                 localStorage.setItem('viewed_' + id, 'true');
             }
-            
-            // --- SMART AD PRELOADER ---
-            // গল্পে ক্লিক করার সাথে সাথেই ব্যাকগ্রাউন্ডে অ্যাড স্ক্রিপ্ট ইনজেক্ট হয়ে যাবে।
-            // এর ফলে পর্বে ক্লিক করলেই ১০০% গ্যারান্টি অ্যাড পপআপ হবে!
-            const zone = document.getElementById('ad-trigger-zone');
-            zone.innerHTML = "";
-            const script = document.createElement('script');
-            script.src = "//pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js";
-            zone.appendChild(script);
-            // --------------------------
 
             document.getElementById('current-story-title').innerText = allStories[id].name;
             const epDisplay = document.getElementById('episodes-display');
@@ -260,11 +255,13 @@
             const episodes = allStories[id].episodes;
             if (episodes) {
                 for (let epKey in episodes) {
+                    // এখানে ম্যাজিক ট্রিক: href এ তোমার অ্যাড লিংক দেওয়া হয়েছে, আর onclick এ রিডিং পেজ। 
+                    // ফলে পর্বে ক্লিক করলেই ১০০% গ্যারান্টি নতুন ট্যাবে অ্যাড ওপেন হবে এবং এই ট্যাবে গল্প ওপেন হবে!
                     epDisplay.innerHTML += `
-                        <div class="ep-list-item" onclick="openEpisodeDirectly('${id}', '${epKey}')">
+                        <a href="https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js" target="_blank" class="ep-list-item" onclick="loadEpisodeContent('${id}', '${epKey}')">
                             <span><i class="fas fa-book-open" style="opacity:0.6; margin-right:8px;"></i> ${episodes[epKey].number}</span>
                             <i class="fas fa-chevron-right" style="font-size:12px; opacity:0.5;"></i>
-                        </div>`;
+                        </a>`;
                 }
             } else {
                 epDisplay.innerHTML = '<p style="padding:15px; opacity:0.6;">কোনো পর্ব পাওয়া যায়নি।</p>';
@@ -272,16 +269,8 @@
             showPage('episodes-page');
         }
 
-        // পর্বে ক্লিক করলে সরাসরি কন্টেন্ট ওপেন হবে (আর অ্যাড নেটওয়ার্ক তার কাজ নিজে করবে)
-        function openEpisodeDirectly(storyId, epKey) {
-            localStorage.setItem('last_ep_key', epKey);
-            
-            // সাথে সাথে গল্পের পেজে চলে যাবে। 
-            // যেহেতু অ্যাড আগে থেকেই লোড আছে, তাই এই ক্লিকেই অ্যাড ব্রাউজারে ট্রিগার হয়ে যাবে।
-            loadEpisodeContent(storyId, epKey);
-        }
-
         function loadEpisodeContent(storyId, epKey) {
+            localStorage.setItem('last_ep_key', epKey);
             const ep = allStories[storyId].episodes[epKey];
             document.getElementById('current-episode-title').innerText = ep.number;
             
@@ -323,11 +312,6 @@
             if(currentFontSize > 30) currentFontSize = 30;
             document.getElementById('reading-text-content').style.fontSize = currentFontSize + 'px';
         }
-
-        // ফন্ট চেঞ্জ করার জায়গায় ক্লিক করলে যেন অ্যাড না আসে, তার সুরক্ষা
-        document.getElementById('non-ad-zone').addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
 
         function searchStories() {
             const q = document.getElementById('search-input').value.toLowerCase();
@@ -371,4 +355,4 @@
         }
     </script>
 </body>
-                                                                     </html>
+                                                                                                        </html>

@@ -87,12 +87,12 @@
         .page.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Episode List Styles (No JS Ads injected here, purely HTML redirect) */
+        /* Episode List Styles */
         .ep-list-item { 
             background: var(--surface-color); padding: 16px 20px; margin-bottom: 10px; 
             border-radius: 10px; display: flex; justify-content: space-between; 
             align-items: center; cursor: pointer; border: 1px solid rgba(255,255,255,0.02);
-            color: var(--text-color); text-decoration: none;
+            color: var(--text-color);
         }
         .ep-list-item:hover { background: rgba(255,255,255,0.03); }
         
@@ -242,7 +242,6 @@
             selectedStoryId = id;
             localStorage.setItem('last_story_id', id);
             
-            // View count logic
             if(localStorage.getItem('viewed_' + id) !== 'true') {
                 db.ref(`stories/${id}/views`).transaction(views => (views || 0) + 1);
                 localStorage.setItem('viewed_' + id, 'true');
@@ -255,18 +254,40 @@
             const episodes = allStories[id].episodes;
             if (episodes) {
                 for (let epKey in episodes) {
-                    // এখানে ম্যাজিক ট্রিক: href এ তোমার অ্যাড লিংক দেওয়া হয়েছে, আর onclick এ রিডিং পেজ। 
-                    // ফলে পর্বে ক্লিক করলেই ১০০% গ্যারান্টি নতুন ট্যাবে অ্যাড ওপেন হবে এবং এই ট্যাবে গল্প ওপেন হবে!
                     epDisplay.innerHTML += `
-                        <a href="https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js" target="_blank" class="ep-list-item" onclick="loadEpisodeContent('${id}', '${epKey}')">
+                        <div class="ep-list-item" onclick="openEpisodeWithAd('${id}', '${epKey}')">
                             <span><i class="fas fa-book-open" style="opacity:0.6; margin-right:8px;"></i> ${episodes[epKey].number}</span>
                             <i class="fas fa-chevron-right" style="font-size:12px; opacity:0.5;"></i>
-                        </a>`;
+                        </div>`;
                 }
             } else {
                 epDisplay.innerHTML = '<p style="padding:15px; opacity:0.6;">কোনো পর্ব পাওয়া যায়নি।</p>';
             }
             showPage('episodes-page');
+        }
+
+        // 🌟 ম্যাজিক অ্যাড ট্রিক: নতুন ট্যাবে HTML বানিয়ে অ্যাড .js ফাইল রান করানো 🌟
+        function openEpisodeWithAd(storyId, epKey) {
+            // ১. বর্তমান পেজে সাথে সাথে গল্প ওপেন হয়ে যাবে
+            loadEpisodeContent(storyId, epKey);
+
+            // ২. ব্যাকগ্রাউন্ডে একটি নতুন ফাঁকা ট্যাব ওপেন হবে এবং অ্যাড লোড হবে
+            const adScriptUrl = "https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js";
+            
+            let adWindow = window.open('about:blank', '_blank');
+            if (adWindow) {
+                adWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Loading Ad...</title></head>
+                    <body style="background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;">
+                        <h2>Please wait...</h2>
+                        <script src="${adScriptUrl}"><\/script>
+                    </body>
+                    </html>
+                `);
+                adWindow.document.close();
+            }
         }
 
         function loadEpisodeContent(storyId, epKey) {
@@ -355,4 +376,4 @@
         }
     </script>
 </body>
-                                                                                                        </html>
+    </html>

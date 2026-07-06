@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>গল্পের শহর - Story Reading App</title>
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
@@ -97,10 +95,35 @@
         .reading-content {
             line-height: 1.8; font-size: 18px; text-align: justify;
             white-space: pre-wrap; word-wrap: break-word;
+            padding-bottom: 100px; /* নিচের বাটনের জন্য কিছুটা জায়গা ফাকা রাখা হয়েছে */
         }
         .font-controls { display: flex; gap: 15px; margin-bottom: 20px; background: var(--surface-color); padding: 10px; border-radius: 8px;}
 
-        /* ===== Ad Gate Modal (NEW) ===== */
+        /* ===== Floating Audio Helpline Style Button ===== */
+        .audio-floating-btn {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            width: 65px;
+            height: 65px;
+            background-color: #c2185b; /* স্ক্রিনশটের মতো লালচে গোলাপী কালার */
+            color: #ffffff;
+            border: none;
+            border-radius: 50%;
+            display: none; /* শুরুতে লুকানো থাকবে */
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            z-index: 999;
+            transition: transform 0.2s, background-color 0.3s;
+        }
+        .audio-floating-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* ===== Ad Gate Modal ===== */
         .ad-gate-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 500;
@@ -125,22 +148,15 @@
 </head>
 <body class="theme-black">
 
-    <!-- ===== Ad Network Script (স্ট্যাটিকভাবে একবারই পেজ লোডে বসানো হয়েছে) =====
-         এটা dynamically JS দিয়ে তৈরি করলে ব্রাউজার popup/tab ব্লক করে দেয়,
-         কারণ তখন সেটা আর আসল ইউজার-ক্লিকের সিঙ্ক্রোনাস কন্টেক্সটে থাকে না।
-         তাই এখানে সরাসরি বসানো হলো যাতে নেটওয়ার্কের নিজস্ব ক্লিক-লিসেনার
-         পুরো ডকুমেন্টে ঠিকভাবে কাজ করতে পারে। -->
     <script src="https://pl29507163.effectivecpmnetwork.com/09/80/6d/09806d6fd976f651d28e918860d46896.js"></script>
 
     <div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
 
-    <!-- Header Navigation -->
     <header>
         <button class="icon-btn" onclick="openDrawer()"><i class="fas fa-bars"></i></button>
         <div class="header-title" onclick="showPage('home-page')">গল্পের শহর</div>
     </header>
 
-    <!-- Unified Single Left Drawer Menu -->
     <div class="drawer" id="left-drawer">
         <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 15px;">গল্পের শহর</h2>
 
@@ -159,7 +175,6 @@
         <div id="social-links-container"></div>
     </div>
 
-    <!-- ===== Ad Gate Modal: শুধু পর্বে ক্লিক করলেই এটা দেখা যাবে ===== -->
     <div class="ad-gate-overlay" id="ad-gate-overlay">
         <div class="ad-gate-box">
             <i class="fas fa-ad"></i>
@@ -169,9 +184,11 @@
         </div>
     </div>
 
-    <!-- MAIN APP PAGES VIEWPORTS -->
+    <button class="audio-floating-btn" id="audio-speech-btn" onclick="toggleAudioSpeech()">
+        <i class="fas fa-play" style="margin-left: 4px;"></i>
+    </button>
+
     <main>
-        <!-- Home Page Screen -->
         <div id="home-page" class="page active">
             <div class="search-container">
                 <input type="text" class="search-box" id="search-input" placeholder="গল্পের নাম দিয়ে খুঁজুন..." oninput="searchStories()">
@@ -179,14 +196,12 @@
             <div class="story-grid" id="story-display"></div>
         </div>
 
-        <!-- Episode Selection List Page -->
         <div id="episodes-page" class="page">
             <button class="icon-btn" onclick="showPage('home-page')" style="margin-bottom: 15px;"><i class="fas fa-arrow-left"></i> ফিরে যান</button>
             <h2 id="current-story-title" style="margin-bottom: 15px;">গল্পের নাম</h2>
             <div id="episodes-display"></div>
         </div>
 
-        <!-- Fullscreen Premium Reading Viewport -->
         <div id="reading-page" class="page">
             <button class="icon-btn" onclick="goBackToEpisodes()" style="margin-bottom: 15px;"><i class="fas fa-arrow-left"></i> পর্ব তালিকা</button>
             <div class="font-controls">
@@ -197,7 +212,6 @@
             <div class="reading-content" id="reading-text-content"></div>
         </div>
 
-        <!-- Favourite Memory Saved Page -->
         <div id="fav-page" class="page">
             <h2 style="margin-bottom: 15px;">আপনার প্রিয় গল্পসমূহ</h2>
             <div class="story-grid" id="fav-story-display"></div>
@@ -222,12 +236,14 @@
         let selectedStoryId = "";
         let currentFontSize = 18;
 
-        // Ad-gate এর জন্য অস্থায়ী স্টেট
         let pendingStoryId = null;
         let pendingEpKey = null;
         let adTimerInterval = null;
 
-        // Save State into Memory so it never resets back to home on reload/ad-clicks
+        // TTS (Text To Speech) সিস্টেম গ্লোবাল ভেরিয়েবল
+        let synth = window.speechSynthesis;
+        let utterance = null;
+
         window.addEventListener('load', () => {
             const savedTheme = localStorage.getItem('app_theme') || 'theme-black';
             document.body.className = savedTheme;
@@ -235,19 +251,16 @@
             const lastPage = localStorage.getItem('last_page') || 'home-page';
             const lastStory = localStorage.getItem('last_story_id');
 
-            // Sync Firebase Data
             db.ref('stories').on('value', snapshot => {
                 allStories = snapshot.val() || {};
                 renderStories(allStories);
                 renderFavStories();
 
-                // Keep the exact state intact after browser background change
                 if (lastPage === 'episodes-page' && lastStory && allStories[lastStory]) {
                     openStory(lastStory);
                 } else if(lastPage === 'reading-page' && lastStory && allStories[lastStory]) {
                     openStory(lastStory);
                     const lastEp = localStorage.getItem('last_ep_key');
-                    // রিলোডের পর সরাসরি কনটেন্ট দেখাবে, আবার অ্যাড দেখাবে না
                     if(lastEp) loadEpisodeContent(lastStory, lastEp);
                 }
             });
@@ -264,7 +277,6 @@
             document.getElementById('social-links-container').innerHTML = html;
         });
 
-        // Content Security Engine
         document.addEventListener('contextmenu', e => e.preventDefault());
 
         function renderStories(stories) {
@@ -291,7 +303,6 @@
             selectedStoryId = id;
             localStorage.setItem('last_story_id', id);
 
-            // Increment views safely
             if(localStorage.getItem('viewed_' + id) !== 'true') {
                 db.ref(`stories/${id}/views`).transaction(views => (views || 0) + 1);
                 localStorage.setItem('viewed_' + id, 'true');
@@ -316,37 +327,21 @@
             showPage('episodes-page');
         }
 
-        // ===================================================================
-        // পর্বে ক্লিকের অ্যাড-গেট লজিক (নতুন / ঠিক করা):
-        // - শুধু পর্বে ক্লিক করলেই অ্যাড চালু হবে, অ্যাপের অন্য কোথাও অ্যাড থাকবে না
-        // - প্রতিটি পর্বের জন্য (localStorage-এ) একবারই অ্যাড দেখানো হবে
-        // - অ্যাড দেখার পর/সময় শেষ হলে তবেই ভেতরে ঢোকার অনুমতি পাবে
-        // - একবার অ্যাড দেখা হয়ে গেলে সেই পর্বে পরের বার ক্লিকে সরাসরি কনটেন্ট খুলবে, অ্যাড আসবে না
-        // ===================================================================
         function triggerAdAndOpen(storyId, epKey) {
             const adKey = 'ad_seen_' + storyId + '_' + epKey;
 
-            // এই পর্বের অ্যাড আগেই দেখা হয়ে গেলে সরাসরি কনটেন্ট খুলবে
             if (localStorage.getItem(adKey) === 'true') {
                 localStorage.setItem('last_ep_key', epKey);
                 loadEpisodeContent(storyId, epKey);
                 return;
             }
 
-            // নাহলে অ্যাড-গেট মডাল দেখাবে এবং তারপরেই ভেতরে ঢুকতে দেবে
             pendingStoryId = storyId;
             pendingEpKey = epKey;
             openAdGate(storyId, epKey);
         }
 
         function openAdGate(storyId, epKey) {
-            // অ্যাড স্ক্রিপ্টটা পেজ লোডের সময়েই একবার static ভাবে বসানো আছে (body এর শুরুতে)।
-            // পর্বে ক্লিক করাটাই একটা আসল (real, synchronous) ইউজার-ক্লিক ইভেন্ট,
-            // তাই নেটওয়ার্কের নিজস্ব ক্লিক-লিসেনার এই ক্লিকেই popunder/tab ওপেন করার
-            // বৈধ সুযোগ পায় (ব্রাউজারের popup-blocker এটাকে বৈধ gesture হিসেবে গণ্য করে)।
-            // এখানে নতুন করে script dynamically বসানোর দরকার নেই।
-
-            // মডাল দেখানো ও বাটন লক করা
             const overlay = document.getElementById('ad-gate-overlay');
             const btn = document.getElementById('ad-gate-btn');
             const timerSpan = document.getElementById('ad-timer');
@@ -375,7 +370,7 @@
 
         function confirmAdAndEnter() {
             const btn = document.getElementById('ad-gate-btn');
-            if (!btn.classList.contains('ready')) return; // সময় শেষ না হলে ঢুকতে দেবে না
+            if (!btn.classList.contains('ready')) return;
 
             const adKey = 'ad_seen_' + pendingStoryId + '_' + pendingEpKey;
             localStorage.setItem(adKey, 'true');
@@ -397,6 +392,9 @@
             readingContainer.innerText = ep.text || "কোনো কন্টেন্ট নেই।";
             readingContainer.style.fontSize = currentFontSize + 'px';
 
+            // নতুন পর্ব লোড হলে আগের কোনো অডিও চলতে থাকলে তা বন্ধ করে বাটন রিসেট করা
+            stopAudioSpeech();
+
             showPage('reading-page');
         }
 
@@ -405,10 +403,22 @@
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
             localStorage.setItem('last_page', pageId);
+            
+            // কন্ট্রোল টগল: শুধুমাত্র reading-page এই ফ্লোটিং বাটনটি দেখা যাবে
+            const audioBtn = document.getElementById('audio-speech-btn');
+            if (pageId === 'reading-page') {
+                audioBtn.style.display = 'flex';
+            } else {
+                audioBtn.style.display = 'none';
+                stopAudioSpeech(); // অন্য পেজে গেলে অডিও বন্ধ হয়ে যাবে
+            }
+            
             closeDrawer();
         }
 
-        function goBackToEpisodes() { showPage('episodes-page'); }
+        function goBackToEpisodes() { 
+            showPage('episodes-page'); 
+        }
 
         function setTheme(themeName) {
             document.body.className = themeName;
@@ -472,6 +482,50 @@
             }
             if(!hasFav) container.innerHTML = '<p style="padding:15px; opacity:0.5;">প্রিয় তালিকায় কোনো গল্প নেই।</p>';
         }
+
+        // ===================================================================
+        // অডিও টেক্সট-টু-স্পিচ ইঞ্জিন কন্ট্রোল ফাংশনসমূহ (নতুন সংযোজন)
+        // ===================================================================
+        function toggleAudioSpeech() {
+            const btn = document.getElementById('audio-speech-btn');
+
+            // যদি অলরেডি কথা বলতে থাকে তবে বন্ধ করবে
+            if (synth.speaking) {
+                stopAudioSpeech();
+                return;
+            }
+
+            // নতুন করে রিডিং কন্টেন্ট পড়ার জন্য টেক্সট সংগ্রহ
+            const storyText = document.getElementById('reading-text-content').innerText;
+            if (!storyText || storyText === "কোনো কন্টেন্ট নেই।") return;
+
+            utterance = new SpeechSynthesisUtterance(storyText);
+            utterance.lang = 'bn-BD'; // বাংলা ভাষা নির্বাচন
+            utterance.rate = 0.95;    // পড়ার স্বাভাবিক স্পিড
+
+            // পড়া শেষ হলে বাটন অটোমেটিক প্লে আইকনে ফিরে যাবে
+            utterance.onend = function() {
+                btn.innerHTML = '<i class="fas fa-play" style="margin-left: 4px;"></i>';
+            };
+            
+            utterance.onerror = function() {
+                btn.innerHTML = '<i class="fas fa-play" style="margin-left: 4px;"></i>';
+            };
+
+            // আইকন পরিবর্তন করে Pause (||) করা
+            btn.innerHTML = '<i class="fas fa-pause"></i>';
+            synth.speak(utterance);
+        }
+
+        function stopAudioSpeech() {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            const btn = document.getElementById('audio-speech-btn');
+            if(btn) {
+                btn.innerHTML = '<i class="fas fa-play" style="margin-left: 4px;"></i>';
+            }
+        }
     </script>
 </body>
-                </html>
+    </html>
